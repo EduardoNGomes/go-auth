@@ -22,9 +22,7 @@ func TestRoutes(t *testing.T) {
 
 		serverMock.ServeHTTP(response, request)
 
-		if response.Code != http.StatusOK {
-			t.Errorf("Expected -> %d\n Receive ->%d", http.StatusOK, response.Code)
-		}
+		verifyStatusCode(t, http.StatusOK, response.Code)
 
 		var body string
 
@@ -41,15 +39,22 @@ func TestRoutes(t *testing.T) {
 
 	})
 
+	t.Run("[GET] home route", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodGet, "/home", nil)
+		response := httptest.NewRecorder()
+
+		serverMock.ServeHTTP(response, request)
+
+		verifyStatusCode(t, http.StatusOK, response.Code)
+	})
+
 	t.Run("[GET] Login route", func(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodGet, "/login", nil)
 		response := httptest.NewRecorder()
 
 		serverMock.ServeHTTP(response, request)
 
-		if response.Code != http.StatusTemporaryRedirect {
-			t.Errorf("Expected -> %d\n Receive ->%d", http.StatusTemporaryRedirect, response.Code)
-		}
+		verifyStatusCode(t, http.StatusTemporaryRedirect, response.Code)
 	})
 
 	t.Run("[POST] Login route", func(t *testing.T) {
@@ -58,9 +63,7 @@ func TestRoutes(t *testing.T) {
 
 		serverMock.ServeHTTP(response, request)
 
-		if response.Code != http.StatusNotFound {
-			t.Errorf("Expected -> %d\n Receive ->%d", http.StatusNotFound, response.Code)
-		}
+		verifyStatusCode(t, http.StatusNotFound, response.Code)
 	})
 
 	t.Run("[GET] Callback route", func(t *testing.T) {
@@ -69,9 +72,8 @@ func TestRoutes(t *testing.T) {
 
 		serverMock.ServeHTTP(response, request)
 
-		if response.Code != http.StatusPermanentRedirect {
-			t.Errorf("Expected -> %d\n Receive ->%d", http.StatusPermanentRedirect, response.Code)
-		}
+		verifyStatusCode(t, http.StatusPermanentRedirect, response.Code)
+
 	})
 
 	t.Run("[POST] Callback route", func(t *testing.T) {
@@ -80,8 +82,12 @@ func TestRoutes(t *testing.T) {
 
 		serverMock.ServeHTTP(response, request)
 
-		if response.Code != http.StatusNotFound {
-			t.Errorf("Expected -> %d\n Receive ->%d", http.StatusNotFound, response.Code)
-		}
+		verifyStatusCode(t, http.StatusNotFound, response.Code)
 	})
+}
+
+func verifyStatusCode(t *testing.T, expect, receive int) {
+	if receive != expect {
+		t.Errorf("Expected -> %d\n Receive ->%d", expect, receive)
+	}
 }

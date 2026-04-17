@@ -72,9 +72,10 @@ func (s *Server) getPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		url, err := s.googleActions.AuthRedirect()
+		url, err := s.googleActions.AuthRedirect(r)
 
 		if err != nil {
+			fmt.Println(err)
 			http.Error(w, "Failed connect on auth route", http.StatusInternalServerError)
 		}
 
@@ -92,6 +93,7 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 		url, err := s.googleActions.CallbackRedirect(r)
 
 		if err != nil {
+			fmt.Println(err)
 			http.Error(w, "Failed connect on callback route", http.StatusInternalServerError)
 		}
 
