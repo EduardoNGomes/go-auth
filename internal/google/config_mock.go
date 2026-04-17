@@ -10,7 +10,7 @@ func NewGoogleMock() *GoogleMock {
 	return &GoogleMock{}
 }
 
-func (g *GoogleMock) AuthRedirect() (string, error) {
+func (g *GoogleMock) AuthRedirect(r *http.Request) (string, error) {
 	return "hc", nil
 }
 
