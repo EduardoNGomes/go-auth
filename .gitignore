@@ -1,3 +1,4 @@
 .env
 go.sum
 google_credentials.json
+coverage.out
