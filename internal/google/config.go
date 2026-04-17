@@ -8,7 +8,9 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -107,5 +109,48 @@ func (g *Google) CallbackRedirect(r *http.Request) (string, error) {
 
 	callbackPath := base + os.Getenv("CALLBACK_PATH")
 
-	return callbackPath, nil
+	tokenJWT, err := g.createJWTToken(user)
+
+	if err != nil {
+		wrappedErr := fmt.Errorf("error on create JWT TOKEN: %w", err)
+		return "", wrappedErr
+	}
+
+	u, err := url.Parse(callbackPath)
+
+	if err != nil {
+		wrappedErr := fmt.Errorf("error on create JWT TOKEN on Query: %w", err)
+		return "", wrappedErr
+	}
+
+	q := u.Query()
+	q.Set("token", tokenJWT)
+	u.RawQuery = q.Encode()
+
+	return u.String(), nil
+}
+
+func (g *Google) createJWTToken(user GoogleUser) (string, error) {
+	key := []byte(os.Getenv("SECRET"))
+
+	t := jwt.NewWithClaims(jwt.SigningMethodHS256,
+		jwt.MapClaims{
+			"sub":          user.Sub,
+			"name":         user.Name,
+			"email":        user.Email,
+			"local":        user.Locale,
+			"emailVerfied": user.EmailVerified,
+			"picture":      user.Picture,
+			"exp":          time.Now().Add(1 * time.Minute).Unix(),
+			"iat":          time.Now().Unix(),
+		},
+	)
+
+	s, err := t.SignedString(key)
+
+	if err != nil {
+		fmt.Println("err", err)
+	}
+
+	return s, nil
 }

@@ -29,7 +29,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 
-	fmt.Printf("Server is running o port %s", port)
+	fmt.Printf("Server is running o port %s\n", port)
 
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), routes); err != nil {
 		log.Fatalf("Fail to run port 5000 %v", err)
