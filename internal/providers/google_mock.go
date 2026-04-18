@@ -1,4 +1,4 @@
-package google
+package providers
 
 import (
 	"net/http"

@@ -1,4 +1,4 @@
-package google
+package providers
 
 import (
 	"context"
@@ -27,11 +27,6 @@ type GoogleUser struct {
 	Email         string `json:"email"`
 	EmailVerified bool   `json:"email_verified"`
 	Locale        string `json:"locale"`
-}
-
-type GoogleActions interface {
-	AuthRedirect(*http.Request) (string, error)
-	CallbackRedirect(*http.Request) (string, error)
 }
 
 func NewGoogle() *Google {
