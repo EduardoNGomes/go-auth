@@ -18,13 +18,26 @@ func TestProvider(t *testing.T) {
 
 	})
 
-	t.Run("Should receive error if some Google env is missing", func(t *testing.T) {
+	t.Run("[GOOGLE]Should receive error if some Google env is missing", func(t *testing.T) {
+		os.Clearenv()
 		os.Setenv("GOOGLE_ENABLE", "1")
 
 		_, err := NewOAuthOptions()
 
 		if err != GoogleEnvMissingError {
 			t.Errorf("Expect -> %v, Receive -> %v", GoogleEnvMissingError, err)
+		}
+
+	})
+
+	t.Run("[GITHUB]Should receive error if some Github env is missing", func(t *testing.T) {
+		os.Clearenv()
+		os.Setenv("GITHUB_ENABLE", "1")
+
+		_, err := NewOAuthOptions()
+
+		if err != GithuEnvMissingError {
+			t.Errorf("Expect -> %v, Receive -> %v", GithuEnvMissingError, err)
 		}
 
 	})

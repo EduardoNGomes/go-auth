@@ -24,13 +24,14 @@ func NewOAuthOptions() (OAuthOptions, error) {
 	options := OAuthOptions{}
 
 	googleEnable := os.Getenv("GOOGLE_ENABLE") == "1"
+	githubEnable := os.Getenv("GITHUB_ENABLE") == "1"
 
-	if !googleEnable {
+	if !googleEnable && !githubEnable {
 		return options, OAuthNotConfiguredError
 	}
 
 	if googleEnable {
-		googleEnvs := []string{"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_CALLBACK"}
+		googleEnvs := [3]string{"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_CALLBACK"}
 
 		ok := validateEnvs(googleEnvs)
 
@@ -41,10 +42,21 @@ func NewOAuthOptions() (OAuthOptions, error) {
 		options[GOOGLE] = NewGoogle()
 	}
 
+	if githubEnable {
+		githubEnvs := [3]string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "GITHUB_CALLBACK"}
+
+		ok := validateEnvs(githubEnvs)
+
+		if !ok {
+			return options, GithuEnvMissingError
+		}
+
+		options[GOOGLE] = NewGoogle()
+	}
 	return options, nil
 }
 
-func validateEnvs(envs []string) bool {
+func validateEnvs(envs [3]string) bool {
 	for _, v := range envs {
 		if os.Getenv(v) == "" {
 			return false
