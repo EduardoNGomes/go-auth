@@ -12,7 +12,7 @@ import (
 )
 
 func TestRoutes(t *testing.T) {
-	c := providers.NewGoogleMock()
+	c := providers.NewMock()
 	p := map[providers.Provider]providers.Actions{providers.GOOGLE: c}
 	s, _ := routes.NewServer(p)
 	serverMock, _ := routes.NewRoutes(s)
