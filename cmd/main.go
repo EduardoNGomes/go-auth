@@ -14,10 +14,12 @@ import (
 
 func main() {
 
-	googleProvider := providers.NewGoogle()
-	options := map[providers.Provider]providers.Actions{providers.GOOGLE: googleProvider}
-	server, err := r.NewServer(options)
+	options, err := providers.NewOAuthOptions()
+	if err != nil {
+		log.Fatal(err)
+	}
 
+	server, err := r.NewServer(options)
 	if err != nil {
 		log.Fatal(err)
 	}

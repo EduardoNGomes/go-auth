@@ -35,8 +35,8 @@ func NewGoogle() *Google {
 
 func (g *Google) getConfig() *oauth2.Config {
 	conf := &oauth2.Config{
-		ClientID:     os.Getenv("CLIENT_ID"),
-		ClientSecret: os.Getenv("CLIENT_SECRET"),
+		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		RedirectURL:  os.Getenv("GOOGLE_CALLBACK"),
 		Scopes: []string{
 			"email",

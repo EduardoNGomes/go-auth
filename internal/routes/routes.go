@@ -14,14 +14,14 @@ import (
 type Server struct {
 	http.Handler
 	template     *template.Template
-	oauthOptions map[providers.Provider]providers.Actions
+	oauthOptions providers.OAuthOptions
 }
 
 const ContentTypeJSON = "application/json"
 
 var HtmlTemplatePath = pages.GetHtmlTemplate()
 
-func NewServer(options map[providers.Provider]providers.Actions) (*Server, error) {
+func NewServer(options providers.OAuthOptions) (*Server, error) {
 	return &Server{
 		oauthOptions: options,
 	}, nil
