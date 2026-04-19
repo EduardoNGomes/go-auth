@@ -1,22 +1,20 @@
 package providers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
 
-type Google struct{}
+type Google struct {
+	config *oauth2.Config
+}
 
 type GoogleUser struct {
 	Sub           string `json:"sub"`
@@ -30,10 +28,6 @@ type GoogleUser struct {
 }
 
 func NewGoogle() *Google {
-	return &Google{}
-}
-
-func (g *Google) getConfig() *oauth2.Config {
 	conf := &oauth2.Config{
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
@@ -44,103 +38,54 @@ func (g *Google) getConfig() *oauth2.Config {
 		},
 		Endpoint: google.Endpoint,
 	}
-	return conf
+	return &Google{
+		config: conf,
+	}
 }
 
 func (g *Google) AuthRedirect(r *http.Request) (string, error) {
-	conf := g.getConfig()
-	uuid, err := uuid.NewRandom()
+	conf := g.config
+
+	url, err := authCommon(conf, r)
 
 	if err != nil {
-		wrappedErr := fmt.Errorf("error creating code: %w", err)
-		return "", wrappedErr
+		return "", err
+
 	}
-
-	code := uuid.String() + "--" + r.Referer()
-
-	url := conf.AuthCodeURL(code)
 
 	return url, nil
 }
 
 func (g *Google) CallbackRedirect(r *http.Request) (string, error) {
-	conf := g.getConfig()
-	code := r.FormValue("code")
-	referer := strings.Split(r.FormValue("state"), "--")[1]
+	funcParams := callbackCommonParams{
+		c: g.config,
+		r: r,
+		g: g,
+	}
 
-	parsed, err := url.Parse(referer)
-
+	url, err := callbackCommon(&funcParams)
 	if err != nil {
-		wrappedErr := fmt.Errorf("error on parser referer: %w", err)
-		return "", wrappedErr
+		return "", err
+
 	}
 
-	base := parsed.Scheme + "://" + parsed.Host
+	return url, nil
 
-	token, err := conf.Exchange(context.Background(), code)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("error on validate code: %w", err)
-		return "", wrappedErr
-	}
-
-	client := conf.Client(context.Background(), token)
-
-	resp, err := client.Get("https://openidconnect.googleapis.com/v1/userinfo")
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("error on get profile info: %w", err)
-		return "", wrappedErr
-	}
-
-	defer resp.Body.Close()
-
-	var user GoogleUser
-
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		wrappedErr := fmt.Errorf("error on decode user: %w", err)
-		return "", wrappedErr
-	}
-
-	callbackPath := base + os.Getenv("CALLBACK_PATH")
-
-	tokenJWT, err := g.createJWTToken(user)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("error on create JWT TOKEN: %w", err)
-		return "", wrappedErr
-	}
-
-	u, err := url.Parse(callbackPath)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("error on create JWT TOKEN on Query: %w", err)
-		return "", wrappedErr
-	}
-
-	q := u.Query()
-	q.Set("token", tokenJWT)
-	u.RawQuery = q.Encode()
-
-	return u.String(), nil
 }
 
-func (g *Google) createJWTToken(user GoogleUser) (string, error) {
+func (g *Google) createJWTToken(user User) (string, error) {
 	key := []byte(os.Getenv("SECRET"))
 
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{
-			"sub":          user.Sub,
-			"name":         user.Name,
-			"email":        user.Email,
-			"local":        user.Locale,
-			"emailVerfied": user.EmailVerified,
-			"picture":      user.Picture,
-			"exp":          time.Now().Add(1 * time.Minute).Unix(),
-			"iat":          time.Now().Unix(),
+			"name":     user.Name,
+			"email":    user.Email,
+			"location": user.Location,
+			"picture":  user.AvatarUrl,
+			"exp":      time.Now().Add(1 * time.Minute).Unix(),
+			"iat":      time.Now().Unix(),
 		},
 	)
-
 	s, err := t.SignedString(key)
 
 	if err != nil {
@@ -148,4 +93,34 @@ func (g *Google) createJWTToken(user GoogleUser) (string, error) {
 	}
 
 	return s, nil
+}
+
+func (g *Google) getUser(client *http.Client) (User, error) {
+	resp, err := client.Get("https://api.github.com/user")
+
+	var userG GoogleUser
+	var user User
+
+	if err != nil {
+		wrappedErr := fmt.Errorf("error on get profile info: %w", err)
+		return user, wrappedErr
+	}
+
+	defer resp.Body.Close()
+
+	if err := json.NewDecoder(resp.Body).Decode(&userG); err != nil {
+		wrappedErr := fmt.Errorf("error on decode user: %w", err)
+		return user, wrappedErr
+	}
+
+	return userG.toUser(), nil
+}
+
+func (u GoogleUser) toUser() User {
+	return User{
+		Name:      u.Name,
+		AvatarUrl: u.Picture,
+		Email:     u.Email,
+		Location:  u.Locale,
+	}
 }
