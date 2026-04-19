@@ -81,20 +81,39 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 
 	pathProvider := providers.Provider(strings.ToUpper(path))
 
+	var redirectURL string
+
 	switch pathProvider {
 	case providers.GOOGLE:
-		url, err := s.oauthOptions[providers.GOOGLE].AuthRedirect(r)
+		{
+			url, err := s.oauthOptions[providers.GOOGLE].AuthRedirect(r)
 
-		if err != nil {
-			fmt.Println(err)
-			http.Error(w, "Failed connect on auth route", http.StatusInternalServerError)
+			if err != nil {
+				fmt.Println(err)
+				http.Error(w, "Failed connect on auth route", http.StatusInternalServerError)
+				return
+			}
+			redirectURL = url
+
 		}
+	case providers.GITHUB:
+		{
+			url, err := s.oauthOptions[providers.GITHUB].AuthRedirect(r)
 
-		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+			if err != nil {
+				fmt.Println(err)
+				http.Error(w, "Failed connect on auth route", http.StatusInternalServerError)
+				return
+			}
+			redirectURL = url
+
+		}
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode("Not Found")
+		return
 	}
+	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
 func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
@@ -106,21 +125,41 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var redirectURL string
+
 	pathProvider := providers.Provider(strings.ToUpper(path))
 	switch pathProvider {
 	case providers.GOOGLE:
-		url, err := s.oauthOptions[providers.GOOGLE].CallbackRedirect(r)
+		{
 
-		if err != nil {
-			fmt.Println(err)
-			http.Error(w, "Failed connect on callback route", http.StatusInternalServerError)
+			url, err := s.oauthOptions[providers.GOOGLE].CallbackRedirect(r)
+
+			redirectURL = url
+
+			if err != nil {
+				fmt.Println(err)
+				http.Error(w, "Failed connect on callback route", http.StatusInternalServerError)
+			}
+
 		}
+	case providers.GITHUB:
+		{
 
-		http.Redirect(w, r, url, http.StatusPermanentRedirect)
+			url, err := s.oauthOptions[providers.GITHUB].CallbackRedirect(r)
+
+			redirectURL = url
+
+			if err != nil {
+				fmt.Println(err)
+				http.Error(w, "Failed connect on callback route", http.StatusInternalServerError)
+			}
+
+		}
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode("Not Found")
 	}
+	http.Redirect(w, r, redirectURL, http.StatusPermanentRedirect)
 }
 
 func providerVerify(w http.ResponseWriter, requestMethod, path string) bool {
