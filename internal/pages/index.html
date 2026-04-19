@@ -1,21 +1,72 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login</title>
+  <meta name="color-scheme" content="dark">
+  <title>Go Auth | Sign In</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <main class="page">
-    <section class="login-panel" aria-labelledby="login-title">
-      <p class="eyebrow">Acesso seguro</p>
-      <h1 id="login-title">Entre na sua conta</h1>
-      <p class="description">Use sua conta para continuar GOOGLE.</p>
-      <a class="login-button" href="/login/google">Entrar</a>
-      <p class="description">Use sua conta para continuar GITHUB.</p>
-      <a class="login-button" href="/login/github">Entrar</a>
-    </section>
+  <main class="page" aria-labelledby="login-title">
+    <div class="shell">
+      <section class="intro" aria-label="Go Auth">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Go Auth</span>
+        </div>
+
+        <p class="eyebrow">Simple, secure OAuth</p>
+        <h1 id="login-title">Sign in to <span>continue</span></h1>
+        <p class="description">
+          Choose a provider and continue with a protected session for your application.
+        </p>
+
+        <div class="status-row" aria-label="Authentication features">
+          <span>OAuth 2.0</span>
+          <span>JWT</span>
+          <span>Google</span>
+          <span>GitHub</span>
+        </div>
+      </section>
+
+      <section class="login-panel" aria-label="Choose a login provider">
+        <div class="panel-shine" aria-hidden="true"></div>
+        <p class="panel-label">Secure access</p>
+
+        <div class="provider-list">
+          <a class="login-button" href="/login/google">
+            <span class="icon-shell" aria-hidden="true">
+              <img
+                src="https://developers.google.com/identity/images/g-logo.png"
+                width="22"
+                height="22"
+                alt=""
+                decoding="async"
+                referrerpolicy="no-referrer"
+              >
+            </span>
+            <span>Continue with Google</span>
+          </a>
+
+          <a class="login-button" href="/login/github">
+            <span class="icon-shell" aria-hidden="true">
+              <img
+                src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+                width="22"
+                height="22"
+                alt=""
+                decoding="async"
+                referrerpolicy="no-referrer"
+              >
+            </span>
+            <span>Continue with GitHub</span>
+          </a>
+        </div>
+
+        <p class="fine-print">You will be redirected to confirm access.</p>
+      </section>
+    </div>
   </main>
 </body>
 </html>
