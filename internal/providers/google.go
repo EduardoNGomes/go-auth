@@ -64,6 +64,7 @@ func (g *Google) CallbackRedirect(r *http.Request) (string, error) {
 	}
 
 	url, err := callbackCommon(&funcParams)
+
 	if err != nil {
 		return "", err
 
@@ -89,28 +90,32 @@ func (g *Google) createJWTToken(user User) (string, error) {
 	s, err := t.SignedString(key)
 
 	if err != nil {
-		fmt.Println("err", err)
+		return "", err
 	}
 
 	return s, nil
 }
 
 func (g *Google) getUser(client *http.Client) (User, error) {
-	resp, err := client.Get("https://api.github.com/user")
-
-	var userG GoogleUser
-	var user User
+	resp, err := client.Get("https://openidconnect.googleapis.com/v1/userinfo")
 
 	if err != nil {
 		wrappedErr := fmt.Errorf("error on get profile info: %w", err)
-		return user, wrappedErr
+		fmt.Println("wrappedErr", wrappedErr)
+		return User{}, wrappedErr
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return User{}, fmt.Errorf("google user api returned status: %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()
 
+	var userG GoogleUser
+
 	if err := json.NewDecoder(resp.Body).Decode(&userG); err != nil {
 		wrappedErr := fmt.Errorf("error on decode user: %w", err)
-		return user, wrappedErr
+		return User{}, wrappedErr
 	}
 
 	return userG.toUser(), nil

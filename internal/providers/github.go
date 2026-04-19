@@ -85,7 +85,7 @@ func (g *Github) createJWTToken(user User) (string, error) {
 	s, err := t.SignedString(key)
 
 	if err != nil {
-		fmt.Println("err", err)
+		return "", err
 	}
 
 	return s, nil
@@ -95,18 +95,21 @@ func (g *Github) getUser(client *http.Client) (User, error) {
 	resp, err := client.Get("https://api.github.com/user")
 
 	var userG GithubUser
-	var user User
 
 	if err != nil {
 		wrappedErr := fmt.Errorf("error on get profile info: %w", err)
-		return user, wrappedErr
+		return User{}, wrappedErr
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return User{}, fmt.Errorf("github user api returned status: %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()
 
 	if err := json.NewDecoder(resp.Body).Decode(&userG); err != nil {
 		wrappedErr := fmt.Errorf("error on decode user: %w", err)
-		return user, wrappedErr
+		return User{}, wrappedErr
 	}
 
 	return userG.toUser(), nil
