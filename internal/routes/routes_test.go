@@ -8,12 +8,13 @@ import (
 
 	"gitbhub.com/eduardongomes/go-auth/internal/routes"
 
-	g "gitbhub.com/eduardongomes/go-auth/internal/google"
+	"gitbhub.com/eduardongomes/go-auth/internal/providers"
 )
 
 func TestRoutes(t *testing.T) {
-	c := g.NewGoogleMock()
-	s, _ := routes.NewServer(c)
+	c := providers.NewGoogleMock()
+	p := map[providers.Provider]providers.Actions{providers.GOOGLE: c}
+	s, _ := routes.NewServer(p)
 	serverMock, _ := routes.NewRoutes(s)
 
 	t.Run("[GET] HC route", func(t *testing.T) {
@@ -48,17 +49,8 @@ func TestRoutes(t *testing.T) {
 		verifyStatusCode(t, http.StatusOK, response.Code)
 	})
 
-	t.Run("[GET] Login route", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodGet, "/login", nil)
-		response := httptest.NewRecorder()
-
-		serverMock.ServeHTTP(response, request)
-
-		verifyStatusCode(t, http.StatusTemporaryRedirect, response.Code)
-	})
-
-	t.Run("[POST] Login route", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodPost, "/login", nil)
+	t.Run("[GET] Invalid login route ", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodGet, "/login/invalid", nil)
 		response := httptest.NewRecorder()
 
 		serverMock.ServeHTTP(response, request)
@@ -66,8 +58,35 @@ func TestRoutes(t *testing.T) {
 		verifyStatusCode(t, http.StatusNotFound, response.Code)
 	})
 
-	t.Run("[GET] Callback route", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodGet, "/callback", nil)
+	t.Run("[GET GOOGLE] Login route", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodGet, "/login/google", nil)
+		response := httptest.NewRecorder()
+
+		serverMock.ServeHTTP(response, request)
+
+		verifyStatusCode(t, http.StatusTemporaryRedirect, response.Code)
+	})
+
+	t.Run("[POST GOOGLE] Login route", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodPost, "/login/google", nil)
+		response := httptest.NewRecorder()
+
+		serverMock.ServeHTTP(response, request)
+
+		verifyStatusCode(t, http.StatusNotFound, response.Code)
+	})
+
+	t.Run("[GET] Invalid callback route ", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodGet, "/callback/invalid", nil)
+		response := httptest.NewRecorder()
+
+		serverMock.ServeHTTP(response, request)
+
+		verifyStatusCode(t, http.StatusNotFound, response.Code)
+	})
+
+	t.Run("[GET GOOGLE] Callback route", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodGet, "/callback/google", nil)
 		response := httptest.NewRecorder()
 
 		serverMock.ServeHTTP(response, request)
@@ -76,8 +95,8 @@ func TestRoutes(t *testing.T) {
 
 	})
 
-	t.Run("[POST] Callback route", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodPost, "/callback", nil)
+	t.Run("[POST GOOGLE] Callback route", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodPost, "/callback/google", nil)
 		response := httptest.NewRecorder()
 
 		serverMock.ServeHTTP(response, request)

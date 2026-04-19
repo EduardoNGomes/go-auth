@@ -5,24 +5,25 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
 
-	g "gitbhub.com/eduardongomes/go-auth/internal/google"
 	"gitbhub.com/eduardongomes/go-auth/internal/pages"
+	"gitbhub.com/eduardongomes/go-auth/internal/providers"
 )
 
 type Server struct {
 	http.Handler
-	template      *template.Template
-	googleActions g.GoogleActions
+	template     *template.Template
+	oauthOptions map[providers.Provider]providers.Actions
 }
 
 const ContentTypeJSON = "application/json"
 
 var HtmlTemplatePath = pages.GetHtmlTemplate()
 
-func NewServer(actions g.GoogleActions) (*Server, error) {
+func NewServer(options map[providers.Provider]providers.Actions) (*Server, error) {
 	return &Server{
-		googleActions: actions,
+		oauthOptions: options,
 	}, nil
 }
 func NewRoutes(s *Server) (*Server, error) {
@@ -37,14 +38,14 @@ func NewRoutes(s *Server) (*Server, error) {
 
 	router := http.NewServeMux()
 
+	router.Handle("/hc", http.HandlerFunc(s.healthchecker))
 	router.Handle("/home", http.HandlerFunc(s.getPage))
 	fileServer := http.FileServer(http.Dir("internal/pages"))
-
 	router.Handle("/static/", http.StripPrefix("/static/", fileServer))
 
-	router.Handle("/login", http.HandlerFunc(s.login))
-	router.Handle("/callback", http.HandlerFunc(s.callback))
-	router.Handle("/hc", http.HandlerFunc(s.healthchecker))
+	router.Handle("/login/{provider}", http.HandlerFunc(s.login))
+	router.Handle("/callback/{provider}", http.HandlerFunc(s.callback))
+
 	s.Handler = router
 
 	return s, nil
@@ -70,9 +71,19 @@ func (s *Server) getPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		url, err := s.googleActions.AuthRedirect(r)
+	path := r.PathValue("provider")
+
+	validation := providerVerify(w, r.Method, path)
+
+	if !validation {
+		return
+	}
+
+	pathProvider := providers.Provider(strings.ToUpper(path))
+
+	switch pathProvider {
+	case providers.GOOGLE:
+		url, err := s.oauthOptions[providers.GOOGLE].AuthRedirect(r)
 
 		if err != nil {
 			fmt.Println(err)
@@ -80,7 +91,6 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		}
 
 		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
-
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode("Not Found")
@@ -88,9 +98,18 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		url, err := s.googleActions.CallbackRedirect(r)
+	path := r.PathValue("provider")
+
+	validation := providerVerify(w, r.Method, path)
+
+	if !validation {
+		return
+	}
+
+	pathProvider := providers.Provider(strings.ToUpper(path))
+	switch pathProvider {
+	case providers.GOOGLE:
+		url, err := s.oauthOptions[providers.GOOGLE].CallbackRedirect(r)
 
 		if err != nil {
 			fmt.Println(err)
@@ -102,4 +121,14 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode("Not Found")
 	}
+}
+
+func providerVerify(w http.ResponseWriter, requestMethod, path string) bool {
+	if requestMethod != http.MethodGet || path == "" {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode("Not Found")
+		return false
+	}
+
+	return true
 }
