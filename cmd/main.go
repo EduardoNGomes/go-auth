@@ -8,14 +8,15 @@ import (
 
 	r "gitbhub.com/eduardongomes/go-auth/internal/routes"
 
-	g "gitbhub.com/eduardongomes/go-auth/internal/google"
+	"gitbhub.com/eduardongomes/go-auth/internal/providers"
 	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {
 
-	googleInterface := g.NewGoogle()
-	server, err := r.NewServer(googleInterface)
+	googleProvider := providers.NewGoogle()
+	options := map[providers.Provider]providers.Actions{providers.GOOGLE: googleProvider}
+	server, err := r.NewServer(options)
 
 	if err != nil {
 		log.Fatal(err)
