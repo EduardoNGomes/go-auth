@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"strings"
 
 	"gitbhub.com/eduardongomes/go-auth/internal/pages"
@@ -125,40 +126,54 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var redirectURL string
+	var JWT string
 
 	pathProvider := providers.Provider(strings.ToUpper(path))
 	switch pathProvider {
 	case providers.GOOGLE:
 		{
 
-			url, err := s.oauthOptions[providers.GOOGLE].CallbackRedirect(r)
-
-			redirectURL = url
+			jwt, err := s.oauthOptions[providers.GOOGLE].CallbackRedirect(r)
 
 			if err != nil {
 				fmt.Println(err)
 				http.Error(w, "Failed connect on callback route", http.StatusInternalServerError)
 			}
+
+			JWT = jwt
 
 		}
 	case providers.GITHUB:
 		{
 
-			url, err := s.oauthOptions[providers.GITHUB].CallbackRedirect(r)
-
-			redirectURL = url
+			jwt, err := s.oauthOptions[providers.GITHUB].CallbackRedirect(r)
 
 			if err != nil {
 				fmt.Println(err)
 				http.Error(w, "Failed connect on callback route", http.StatusInternalServerError)
 			}
 
+			JWT = jwt
+
 		}
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode("Not Found")
+
+		return
 	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth_token",
+		Value:    JWT,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
+
+	redirectURL := os.Getenv("REDIRECT_URL")
+
 	http.Redirect(w, r, redirectURL, http.StatusPermanentRedirect)
 }
 

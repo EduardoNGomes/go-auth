@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
-	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
@@ -25,6 +23,7 @@ type User struct {
 	Email     string `json:"email"`
 	Location  string `json:"location"`
 }
+
 type Actions interface {
 	AuthRedirect(*http.Request) (string, error)
 	CallbackRedirect(*http.Request) (string, error)
@@ -81,7 +80,7 @@ func validateEnvs(envs [3]string) bool {
 	return true
 }
 
-func authCommon(c *oauth2.Config, r *http.Request) (string, error) {
+func authCommon(c *oauth2.Config) (string, error) {
 	uuid, err := uuid.NewRandom()
 
 	if err != nil {
@@ -89,7 +88,7 @@ func authCommon(c *oauth2.Config, r *http.Request) (string, error) {
 		return "", wrappedErr
 	}
 
-	code := uuid.String() + "--" + r.Referer()
+	code := uuid.String()
 
 	url := c.AuthCodeURL(code)
 
@@ -106,16 +105,6 @@ type callbackCommonParams struct {
 func callbackCommon(p *callbackCommonParams) (string, error) {
 	conf := p.c
 	code := p.r.FormValue("code")
-	referer := strings.Split(p.r.FormValue("state"), "--")[1]
-
-	parsed, err := url.Parse(referer)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("error on parser referer: %w", err)
-		return "", wrappedErr
-	}
-
-	base := parsed.Scheme + "://" + parsed.Host
 
 	token, err := conf.Exchange(context.Background(), code)
 
@@ -132,8 +121,6 @@ func callbackCommon(p *callbackCommonParams) (string, error) {
 		return "", err
 	}
 
-	callbackPath := base + os.Getenv("CALLBACK_PATH")
-
 	tokenJWT, err := p.g.createJWTToken(user)
 
 	if err != nil {
@@ -141,16 +128,5 @@ func callbackCommon(p *callbackCommonParams) (string, error) {
 		return "", wrappedErr
 	}
 
-	u, err := url.Parse(callbackPath)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("error on create JWT TOKEN on Query: %w", err)
-		return "", wrappedErr
-	}
-
-	q := u.Query()
-	q.Set("token", tokenJWT)
-	u.RawQuery = q.Encode()
-
-	return u.String(), nil
+	return tokenJWT, nil
 }

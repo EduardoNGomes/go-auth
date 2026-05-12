@@ -14,6 +14,10 @@ import (
 
 func main() {
 
+	if err := validateEnvs(); err != nil {
+		log.Fatal(err)
+	}
+
 	options, err := providers.NewOAuthOptions()
 	if err != nil {
 		log.Fatal(err)
@@ -38,4 +42,20 @@ func main() {
 		log.Fatalf("Fail to run port 5000 %v", err)
 	}
 
+}
+
+func validateEnvs() error {
+	if os.Getenv("SECRET") == "" {
+		return fmt.Errorf("Missing env SECRET")
+	}
+
+	if os.Getenv("PORT") == "" {
+		return fmt.Errorf("Missing env PORT")
+	}
+
+	if os.Getenv("REDIRECT_URL") == "" {
+		return fmt.Errorf("Missing env REDIRECT_URL")
+	}
+
+	return nil
 }

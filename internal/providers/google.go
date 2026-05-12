@@ -46,7 +46,7 @@ func NewGoogle() *Google {
 func (g *Google) AuthRedirect(r *http.Request) (string, error) {
 	conf := g.config
 
-	url, err := authCommon(conf, r)
+	url, err := authCommon(conf)
 
 	if err != nil {
 		return "", err
