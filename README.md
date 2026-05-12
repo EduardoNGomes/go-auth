@@ -1,246 +1,165 @@
 # Go Auth
 
-Servidor Go simples para autenticação OAuth 2.0 com múltiplos provedores. Ele redireciona o usuário para o provedor escolhido, recebe o callback, busca dados básicos do perfil e devolve um JWT assinado para a aplicação cliente.
+Servidor Go simples para autenticação OAuth 2.0 com Google e GitHub. Ele inicia o login no provedor, valida o callback com `state` armazenado no Redis, busca dados básicos do usuário e entrega um JWT em cookie `HttpOnly`.
 
-Simple Go server for OAuth 2.0 authentication with multiple providers. It redirects the user to the selected provider, receives the callback, fetches basic profile data, and returns a signed JWT to the client application.
+Simple Go OAuth 2.0 server for Google and GitHub. It starts provider login, validates the callback with a Redis-backed `state`, fetches basic user data, and returns a JWT in an `HttpOnly` cookie.
 
-## Português
+## Portugues
 
-### Visão Geral
+### Visao Geral
 
-O projeto expõe rotas HTTP para iniciar e finalizar autenticação OAuth:
+Rotas principais:
 
-- `GET /login/google`
-- `GET /login/github`
-- `GET /callback/google`
-- `GET /callback/github`
+| Metodo | Rota | Descricao |
+| --- | --- | --- |
+| `GET` | `/home` | Pagina auxiliar com botoes de login. |
+| `GET` | `/login/google` | Inicia login com Google. |
+| `GET` | `/login/github` | Inicia login com GitHub. |
+| `GET` | `/callback/google` | Callback OAuth do Google. |
+| `GET` | `/callback/github` | Callback OAuth do GitHub. |
+| `GET` | `/hc` | Healthcheck. |
+| `GET` | `/static/*` | Arquivos estaticos de `internal/pages`. |
 
-Após o callback do provedor, o servidor cria um JWT com informações do usuário e redireciona o navegador para a origem da aplicação cliente usando `CALLBACK_PATH`:
+Depois do callback, o servidor:
 
-```text
-{origem-da-aplicacao-cliente}{CALLBACK_PATH}?token=<jwt>
-```
+1. Valida o `state` recebido usando Redis.
+2. Troca o `code` OAuth com o provedor.
+3. Busca o perfil do usuario.
+4. Cria um JWT assinado com `SECRET`.
+5. Define o cookie `auth_token` com `HttpOnly`, `Secure` e `SameSite=Lax`.
+6. Redireciona o navegador para `REDIRECT_URL`.
 
-Exemplo:
-
-```text
-http://localhost:3000/auth/callback?token=<jwt>
-```
+O JWT nao e enviado na query string.
 
 ### Provedores
 
-| Provedor | Uso | Habilitação | Callback OAuth |
+| Provedor | Uso | Habilitacao | Callback OAuth |
 | --- | --- | --- | --- |
 | Google | Login com conta Google usando OpenID Connect `userinfo`. | `GOOGLE_ENABLE=1` | `/callback/google` |
 | GitHub | Login com conta GitHub usando a API `/user`. | `GITHUB_ENABLE=1` | `/callback/github` |
-| Mock | Implementação interna para testes automatizados. | Usado diretamente nos testes | Não usa provedor externo |
+| Mock | Implementacao interna para testes automatizados. | Usado nos testes | Nao usa provedor externo |
 
-Observações importantes:
+Observacoes:
 
-- Pelo menos um provedor real precisa estar habilitado com `GOOGLE_ENABLE=1` ou `GITHUB_ENABLE=1`.
-- As rotas de Google e GitHub sempre existem, mas só funcionam corretamente quando o provedor correspondente está configurado.
-- A página `/home` mostra botões para Google e GitHub. Se apenas um provedor estiver configurado, use o botão ou a rota desse provedor.
-- O GitHub pode retornar `email` vazio quando o e-mail do usuário não é público. Para suportar e-mails privados, o projeto precisa solicitar o escopo `user:email` e consultar o endpoint de e-mails do GitHub.
+- Pelo menos um provedor real precisa estar habilitado.
+- Rotas de provedor desabilitado retornam `404`.
+- O GitHub pode retornar `email` vazio quando o e-mail do usuario nao e publico. Para e-mail privado/verificado, o projeto precisa solicitar `user:email` e consultar `/user/emails`.
 
 ### Requisitos
 
-- Go `1.25.0`, conforme definido em [go.mod](go.mod).
-- Uma aplicação OAuth configurada no Google, no GitHub ou em ambos.
-- Uma aplicação cliente que receba o JWT no caminho definido em `CALLBACK_PATH`.
+- Go `1.25.0`, conforme [go.mod](go.mod).
+- Redis acessivel pelo backend.
+- Aplicacao OAuth configurada no Google, GitHub ou ambos.
+- Aplicacao cliente apontada por `REDIRECT_URL`.
 
-### Variáveis de Ambiente
+### Variaveis de Ambiente
 
-O projeto usa `github.com/joho/godotenv/autoload`, então um arquivo `.env` na raiz é carregado automaticamente em desenvolvimento local.
+O projeto usa `github.com/joho/godotenv/autoload`, entao um arquivo `.env` na raiz e carregado automaticamente em desenvolvimento local.
 
-Variáveis gerais:
+Variaveis gerais:
 
-| Variável | Obrigatória | Exemplo | Descrição |
+| Variavel | Obrigatoria | Exemplo | Descricao |
 | --- | --- | --- | --- |
-| `PORT` | Sim | `5000` | Porta do servidor HTTP. |
-| `CALLBACK_PATH` | Sim | `/auth/callback` | Caminho da aplicação cliente para onde o servidor redireciona com o JWT. |
-| `SECRET` | Sim | `troque-por-uma-chave-forte` | Chave usada para assinar o JWT com HS256. |
-| `GOOGLE_ENABLE` | Sim | `1` ou `0` | Habilita (`1`) ou desabilita (`0`) o provedor Google. |
-| `GITHUB_ENABLE` | Sim | `1` ou `0` | Habilita (`1`) ou desabilita (`0`) o provedor GitHub. |
+| `PORT` | Sim | `8080` | Porta HTTP do servidor. |
+| `REDIRECT_URL` | Sim | `https://app.exemplo.com/auth/callback` | URL final para onde o navegador e redirecionado apos login. |
+| `SECRET` | Sim | `chave-aleatoria-com-32-bytes-ou-mais` | Chave usada para assinar JWT com HS256. |
+| `REDIS_ADDR` | Sim | `localhost:6379` | Endereco do Redis usado para armazenar `state` OAuth. |
+| `GOOGLE_ENABLE` | Sim | `1` ou `0` | Habilita Google. |
+| `GITHUB_ENABLE` | Sim | `1` ou `0` | Habilita GitHub. |
 
-Variáveis do Google, obrigatórias quando `GOOGLE_ENABLE=1`:
+Variaveis do Google, obrigatorias quando `GOOGLE_ENABLE=1`:
 
-| Variável | Exemplo | Descrição |
+| Variavel | Exemplo | Descricao |
 | --- | --- | --- |
 | `GOOGLE_CLIENT_ID` | `1234567890-abc.apps.googleusercontent.com` | Client ID OAuth do Google. |
 | `GOOGLE_CLIENT_SECRET` | `GOCSPX-...` | Client Secret OAuth do Google. |
-| `GOOGLE_CALLBACK` | `http://localhost:5000/callback/google` | URI autorizada no Google Cloud Console. |
+| `GOOGLE_CALLBACK` | `http://localhost:8080/callback/google` | URI autorizada no Google Cloud Console. |
 
-Variáveis do GitHub, obrigatórias quando `GITHUB_ENABLE=1`:
+Variaveis do GitHub, obrigatorias quando `GITHUB_ENABLE=1`:
 
-| Variável | Exemplo | Descrição |
+| Variavel | Exemplo | Descricao |
 | --- | --- | --- |
 | `GITHUB_CLIENT_ID` | `Ov23li...` | Client ID da GitHub OAuth App. |
-| `GITHUB_CLIENT_SECRET` | `github_pat_ou_secret...` | Client Secret da GitHub OAuth App. |
-| `GITHUB_CALLBACK` | `http://localhost:5000/callback/github` | Authorization callback URL configurada no GitHub. |
+| `GITHUB_CLIENT_SECRET` | `github-secret...` | Client Secret da GitHub OAuth App. |
+| `GITHUB_CALLBACK` | `http://localhost:8080/callback/github` | Authorization callback URL configurada no GitHub. |
 
-Exemplo de `.env` com os dois provedores:
+Exemplo com os dois provedores:
 
 ```env
-PORT=5000
-CALLBACK_PATH=/auth/callback
-SECRET=troque-por-uma-chave-secreta-forte
+PORT=8080
+REDIRECT_URL=http://localhost:3000/auth/callback
+SECRET=troque-por-uma-chave-aleatoria-com-32-bytes-ou-mais
+REDIS_ADDR=localhost:6379
 
 GOOGLE_ENABLE=1
 GOOGLE_CLIENT_ID=seu-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=seu-google-client-secret
-GOOGLE_CALLBACK=http://localhost:5000/callback/google
+GOOGLE_CALLBACK=http://localhost:8080/callback/google
 
 GITHUB_ENABLE=1
 GITHUB_CLIENT_ID=seu-github-client-id
 GITHUB_CLIENT_SECRET=seu-github-client-secret
-GITHUB_CALLBACK=http://localhost:5000/callback/github
-```
-
-Exemplo usando apenas Google:
-
-```env
-PORT=5000
-CALLBACK_PATH=/auth/callback
-SECRET=troque-por-uma-chave-secreta-forte
-
-GOOGLE_ENABLE=1
-GOOGLE_CLIENT_ID=seu-google-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=seu-google-client-secret
-GOOGLE_CALLBACK=http://localhost:5000/callback/google
-
-GITHUB_ENABLE=0
-```
-
-Exemplo usando apenas GitHub:
-
-```env
-PORT=5000
-CALLBACK_PATH=/auth/callback
-SECRET=troque-por-uma-chave-secreta-forte
-
-GOOGLE_ENABLE=0
-
-GITHUB_ENABLE=1
-GITHUB_CLIENT_ID=seu-github-client-id
-GITHUB_CLIENT_SECRET=seu-github-client-secret
-GITHUB_CALLBACK=http://localhost:5000/callback/github
+GITHUB_CALLBACK=http://localhost:8080/callback/github
 ```
 
 Mantenha `.env`, arquivos de credenciais e qualquer secret fora do versionamento.
 
-### Configuração dos Provedores
+### Redis e State OAuth
 
-Google:
-
-1. Acesse o Google Cloud Console.
-2. Configure a OAuth consent screen.
-3. Crie credenciais OAuth do tipo Web Application.
-4. Adicione a URI autorizada de redirecionamento com o mesmo valor de `GOOGLE_CALLBACK`.
-
-Exemplo local:
+No `/login/{provider}`, o servidor gera um `state` aleatorio e salva no Redis:
 
 ```text
-http://localhost:5000/callback/google
+key:   <state>
+value: GOOGLE ou GITHUB
+ttl:   5 minutos
 ```
 
-Escopos solicitados pelo código:
+Esse mesmo `state` e enviado ao provedor OAuth. No `/callback/{provider}`, o servidor faz `GETDEL` no Redis:
 
-```text
-email
-profile
-```
+- se o `state` nao existir, retorna `400`;
+- se o provider salvo nao bater com a rota do callback, retorna `400`;
+- se o `state` for valido, ele e consumido e nao pode ser reutilizado.
 
-GitHub:
+O `code` OAuth nao e validado pelo Redis. Ele e validado pelo provedor durante `conf.Exchange(ctx, code)`.
 
-1. Acesse GitHub Settings > Developer settings > OAuth Apps.
-2. Crie uma OAuth App.
-3. Configure Homepage URL apontando para sua aplicação cliente ou ambiente local.
-4. Configure Authorization callback URL com o mesmo valor de `GITHUB_CALLBACK`.
-
-Exemplo local:
-
-```text
-http://localhost:5000/callback/github
-```
-
-Escopo solicitado pelo código:
-
-```text
-user
-```
-
-### Como Executar
-
-Instale as dependências:
-
-```bash
-go mod download
-```
-
-Inicie o servidor:
-
-```bash
-go run ./cmd
-```
-
-Com `PORT=5000`, acesse:
-
-```text
-http://localhost:5000/home
-```
-
-Ou inicie diretamente o login pelo provedor configurado:
-
-```text
-http://localhost:5000/login/google
-http://localhost:5000/login/github
-```
-
-Em uma integração real, o usuário deve sair de uma página da aplicação cliente para `/login/{provider}`. O código usa o header `Referer` para descobrir a origem de retorno.
-
-### Rotas
-
-| Método | Rota | Descrição |
-| --- | --- | --- |
-| `GET` | `/home` | Página auxiliar para teste manual com botões de login. |
-| `GET` | `/login/google` | Inicia o login com Google. |
-| `GET` | `/login/github` | Inicia o login com GitHub. |
-| `GET` | `/callback/google` | Recebe o callback do Google e redireciona para a aplicação cliente com JWT. |
-| `GET` | `/callback/github` | Recebe o callback do GitHub e redireciona para a aplicação cliente com JWT. |
-| `GET` | `/hc` | Healthcheck. Retorna JSON com `"Im breathing"`. |
-| `GET` | `/static/*` | Serve arquivos estáticos de `internal/pages`. |
-
-### Fluxo de Autenticação
+### Fluxo de Autenticacao
 
 ```mermaid
 sequenceDiagram
     participant U as Usuario
     participant B as Navegador
-    participant C as Aplicacao cliente
     participant A as Go Auth
+    participant R as Redis
     participant P as Provedor OAuth
+    participant C as Aplicacao cliente
 
-    U->>B: Acessa aplicacao cliente
-    B->>C: GET pagina com botao de login
-    C-->>B: Link para /login/{provider}
     U->>B: Clica em entrar
-    B->>A: GET /login/{provider} com Referer
-    A->>A: Cria state = uuid + "--" + Referer
-    A-->>B: 307 Redirect para o provedor
+    B->>A: GET /login/{provider}
+    A->>A: Gera state aleatorio
+    A->>R: SET state=provider com TTL de 5 minutos
+    A-->>B: 307 Redirect para o provedor com state
     B->>P: Autorizacao OAuth
     P-->>B: Redirect para /callback/{provider}?code=...&state=...
     B->>A: GET /callback/{provider}
+    A->>R: GETDEL state
+    A->>A: Valida provider salvo no state
     A->>P: Troca code por token OAuth
     A->>P: Busca perfil do usuario
-    P-->>A: Dados do usuario
     A->>A: Cria JWT assinado com SECRET
-    A-->>B: 301 Redirect para {origem}{CALLBACK_PATH}?token=JWT
-    B->>C: Entrega token para a aplicacao cliente
+    A-->>B: Set-Cookie auth_token HttpOnly Secure SameSite=Lax
+    A-->>B: 302 Redirect para REDIRECT_URL
+    B->>C: Acessa aplicacao cliente
 ```
 
-### JWT Gerado
+### Cookie e JWT
 
-O token é assinado com `HS256` usando `SECRET` e expira em 1 minuto. As claims atuais incluem:
+O cookie gerado no callback:
+
+```text
+auth_token=<jwt>; HttpOnly; Secure; SameSite=Lax; Path=/
+```
+
+O token e assinado com `HS256` usando `SECRET` e expira em 1 minuto. Claims atuais:
 
 ```json
 {
@@ -253,280 +172,159 @@ O token é assinado com `HS256` usando `SECRET` e expira em 1 minuto. As claims 
 }
 ```
 
+### Como Executar
+
+Suba o Redis local:
+
+```bash
+docker compose up -d redis
+```
+
+Instale dependencias e inicie o servidor:
+
+```bash
+go mod download
+go run ./cmd
+```
+
+Com `PORT=8080`, acesse:
+
+```text
+http://localhost:8080/home
+```
+
+Ou inicie diretamente:
+
+```text
+http://localhost:8080/login/google
+http://localhost:8080/login/github
+```
+
 ### Testes
 
 Execute:
 
 ```bash
-go test ./...
+make test
 ```
 
-Os testes atuais cobrem configuração de provedores e rotas principais usando o provedor `Mock`.
+O alvo `make test` sobe `redis-test` via Docker Compose e executa `go test ./...` com `REDIS_ADDR=localhost:6380`.
 
-### Como Melhorar o Projeto
+### Melhorias Recomendadas
 
-Melhorias recomendadas:
-
-- Validar `PORT`, `CALLBACK_PATH` e `SECRET` na inicialização, evitando rodar com configuração incompleta.
-- Retornar `404` ou `400` quando uma rota de provedor desabilitado for acessada.
-- Proteger melhor o parâmetro `state`: salvar estado em sessão/cookie, validar assinatura e evitar depender apenas do `Referer`.
-- Adicionar CSRF protection e validação explícita de origem permitida para o redirect final.
-- Aumentar a expiração do JWT de forma configurável ou trocar para sessão/refresh token, conforme o caso de uso.
-- Padronizar as claims do JWT e corrigir/expandir dados por provedor.
-- No GitHub, solicitar `user:email` e buscar `/user/emails` quando precisar de e-mail privado.
-- Adicionar testes de integração com servidores HTTP fake para callbacks de Google e GitHub.
-- Adicionar CI com `go test ./...`, `go vet ./...` e verificação de formatação.
-- Versionar `go.sum` para builds reprodutíveis.
-- Corrigir o module path `gitbhub.com/...` se a intenção for publicar/importar como `github.com/...`.
-- Adicionar Dockerfile e exemplo de deploy.
+- Exigir tamanho minimo/entropia para `SECRET`, por exemplo 32 bytes aleatorios.
+- Configurar senha/TLS no Redis em ambientes fora de desenvolvimento local.
+- Usar `http.Server` com `ReadHeaderTimeout`, `ReadTimeout`, `WriteTimeout` e `IdleTimeout`.
+- Definir `MaxAge`/`Expires` no cookie `auth_token` alinhado ao `exp` do JWT.
+- Validar `email_verified` no Google quando e-mail for usado para autorizacao.
+- No GitHub, solicitar `user:email` e buscar `/user/emails` quando precisar de e-mail verificado.
+- Adicionar testes de integracao com servidores HTTP fake para Google e GitHub.
+- Corrigir o module path `gitbhub.com/...` se a intencao for publicar/importar como `github.com/...`.
 
 ## English
 
 ### Overview
 
-The project exposes HTTP routes to start and complete OAuth authentication:
+Main routes:
 
-- `GET /login/google`
-- `GET /login/github`
-- `GET /callback/google`
-- `GET /callback/github`
+| Method | Route | Description |
+| --- | --- | --- |
+| `GET` | `/home` | Helper page with login buttons. |
+| `GET` | `/login/google` | Starts Google login. |
+| `GET` | `/login/github` | Starts GitHub login. |
+| `GET` | `/callback/google` | Google OAuth callback. |
+| `GET` | `/callback/github` | GitHub OAuth callback. |
+| `GET` | `/hc` | Healthcheck. |
+| `GET` | `/static/*` | Static files from `internal/pages`. |
 
-After the provider callback, the server creates a JWT with user information and redirects the browser back to the client application using `CALLBACK_PATH`:
+After the provider callback, the server:
 
-```text
-{client-application-origin}{CALLBACK_PATH}?token=<jwt>
-```
+1. Validates the returned `state` using Redis.
+2. Exchanges the OAuth `code` with the provider.
+3. Fetches the user profile.
+4. Creates a JWT signed with `SECRET`.
+5. Sets the `auth_token` cookie with `HttpOnly`, `Secure`, and `SameSite=Lax`.
+6. Redirects the browser to `REDIRECT_URL`.
 
-Example:
-
-```text
-http://localhost:3000/auth/callback?token=<jwt>
-```
-
-### Providers
-
-| Provider | Use | Enable flag | OAuth callback |
-| --- | --- | --- | --- |
-| Google | Sign in with a Google account using OpenID Connect `userinfo`. | `GOOGLE_ENABLE=1` | `/callback/google` |
-| GitHub | Sign in with a GitHub account using the `/user` API. | `GITHUB_ENABLE=1` | `/callback/github` |
-| Mock | Internal implementation for automated tests. | Used directly by tests | Does not use an external provider |
-
-Important notes:
-
-- At least one real provider must be enabled with `GOOGLE_ENABLE=1` or `GITHUB_ENABLE=1`.
-- Google and GitHub routes are always registered, but they only work correctly when the matching provider is configured.
-- The `/home` page shows buttons for Google and GitHub. If only one provider is configured, use that provider's button or route.
-- GitHub may return an empty `email` when the user's email is not public. To support private emails, the project needs the `user:email` scope and the GitHub emails endpoint.
-
-### Requirements
-
-- Go `1.25.0`, as defined in [go.mod](go.mod).
-- An OAuth application configured in Google, GitHub, or both.
-- A client application that receives the JWT at the path defined by `CALLBACK_PATH`.
+The JWT is not sent in the query string.
 
 ### Environment Variables
-
-The project uses `github.com/joho/godotenv/autoload`, so a root `.env` file is loaded automatically in local development.
 
 General variables:
 
 | Variable | Required | Example | Description |
 | --- | --- | --- | --- |
-| `PORT` | Yes | `5000` | HTTP server port. |
-| `CALLBACK_PATH` | Yes | `/auth/callback` | Client application path the server redirects to with the JWT. |
-| `SECRET` | Yes | `replace-with-a-strong-key` | Key used to sign the JWT with HS256. |
-| `GOOGLE_ENABLE` | Yes | `1` or `0` | Enables (`1`) or disables (`0`) the Google provider. |
-| `GITHUB_ENABLE` | Yes | `1` or `0` | Enables (`1`) or disables (`0`) the GitHub provider. |
+| `PORT` | Yes | `8080` | HTTP server port. |
+| `REDIRECT_URL` | Yes | `https://app.example.com/auth/callback` | Final URL after successful login. |
+| `SECRET` | Yes | `random-key-with-at-least-32-bytes` | HS256 JWT signing key. |
+| `REDIS_ADDR` | Yes | `localhost:6379` | Redis address used for OAuth `state`. |
+| `GOOGLE_ENABLE` | Yes | `1` or `0` | Enables Google. |
+| `GITHUB_ENABLE` | Yes | `1` or `0` | Enables GitHub. |
 
-Google variables, required when `GOOGLE_ENABLE=1`:
+Google variables when `GOOGLE_ENABLE=1`:
 
 | Variable | Example | Description |
 | --- | --- | --- |
 | `GOOGLE_CLIENT_ID` | `1234567890-abc.apps.googleusercontent.com` | Google OAuth Client ID. |
 | `GOOGLE_CLIENT_SECRET` | `GOCSPX-...` | Google OAuth Client Secret. |
-| `GOOGLE_CALLBACK` | `http://localhost:5000/callback/google` | Authorized redirect URI in Google Cloud Console. |
+| `GOOGLE_CALLBACK` | `http://localhost:8080/callback/google` | Authorized redirect URI. |
 
-GitHub variables, required when `GITHUB_ENABLE=1`:
+GitHub variables when `GITHUB_ENABLE=1`:
 
 | Variable | Example | Description |
 | --- | --- | --- |
 | `GITHUB_CLIENT_ID` | `Ov23li...` | GitHub OAuth App Client ID. |
-| `GITHUB_CLIENT_SECRET` | `github_pat_or_secret...` | GitHub OAuth App Client Secret. |
-| `GITHUB_CALLBACK` | `http://localhost:5000/callback/github` | Authorization callback URL configured in GitHub. |
+| `GITHUB_CLIENT_SECRET` | `github-secret...` | GitHub OAuth App Client Secret. |
+| `GITHUB_CALLBACK` | `http://localhost:8080/callback/github` | GitHub authorization callback URL. |
 
-Example `.env` with both providers:
+Example:
 
 ```env
-PORT=5000
-CALLBACK_PATH=/auth/callback
-SECRET=replace-with-a-strong-secret-key
+PORT=8080
+REDIRECT_URL=http://localhost:3000/auth/callback
+SECRET=replace-with-a-random-key-with-at-least-32-bytes
+REDIS_ADDR=localhost:6379
 
 GOOGLE_ENABLE=1
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_CALLBACK=http://localhost:5000/callback/google
+GOOGLE_CALLBACK=http://localhost:8080/callback/google
 
 GITHUB_ENABLE=1
 GITHUB_CLIENT_ID=your-github-client-id
 GITHUB_CLIENT_SECRET=your-github-client-secret
-GITHUB_CALLBACK=http://localhost:5000/callback/github
+GITHUB_CALLBACK=http://localhost:8080/callback/github
 ```
 
-Example using only Google:
+Keep `.env`, credential files, and all secrets out of version control.
 
-```env
-PORT=5000
-CALLBACK_PATH=/auth/callback
-SECRET=replace-with-a-strong-secret-key
+### OAuth State
 
-GOOGLE_ENABLE=1
-GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_CALLBACK=http://localhost:5000/callback/google
-
-GITHUB_ENABLE=0
-```
-
-Example using only GitHub:
-
-```env
-PORT=5000
-CALLBACK_PATH=/auth/callback
-SECRET=replace-with-a-strong-secret-key
-
-GOOGLE_ENABLE=0
-
-GITHUB_ENABLE=1
-GITHUB_CLIENT_ID=your-github-client-id
-GITHUB_CLIENT_SECRET=your-github-client-secret
-GITHUB_CALLBACK=http://localhost:5000/callback/github
-```
-
-Keep `.env`, credential files, and any secrets out of version control.
-
-### Provider Setup
-
-Google:
-
-1. Open Google Cloud Console.
-2. Configure the OAuth consent screen.
-3. Create OAuth credentials for a Web Application.
-4. Add an authorized redirect URI with the same value as `GOOGLE_CALLBACK`.
-
-Local example:
+On `/login/{provider}`, the server generates a random `state` and stores it in Redis:
 
 ```text
-http://localhost:5000/callback/google
+key:   <state>
+value: GOOGLE or GITHUB
+ttl:   5 minutes
 ```
 
-Scopes requested by the code:
+On `/callback/{provider}`, the server consumes the value with `GETDEL`, validates the stored provider, and rejects missing, expired, reused, or cross-provider states.
 
-```text
-email
-profile
+The OAuth `code` is validated by the provider during `conf.Exchange(ctx, code)`, not by Redis.
+
+### Running
+
+Start Redis:
+
+```bash
+docker compose up -d redis
 ```
 
-GitHub:
-
-1. Open GitHub Settings > Developer settings > OAuth Apps.
-2. Create an OAuth App.
-3. Configure Homepage URL pointing to your client application or local environment.
-4. Configure Authorization callback URL with the same value as `GITHUB_CALLBACK`.
-
-Local example:
-
-```text
-http://localhost:5000/callback/github
-```
-
-Scope requested by the code:
-
-```text
-user
-```
-
-### Running the App
-
-Install dependencies:
+Install dependencies and run:
 
 ```bash
 go mod download
-```
-
-Start the server:
-
-```bash
 go run ./cmd
-```
-
-With `PORT=5000`, open:
-
-```text
-http://localhost:5000/home
-```
-
-Or start login directly with the configured provider:
-
-```text
-http://localhost:5000/login/google
-http://localhost:5000/login/github
-```
-
-In a real integration, the user should navigate from a client application page to `/login/{provider}`. The code uses the `Referer` header to discover the return origin.
-
-### Routes
-
-| Method | Route | Description |
-| --- | --- | --- |
-| `GET` | `/home` | Helper page for manual testing with login buttons. |
-| `GET` | `/login/google` | Starts login with Google. |
-| `GET` | `/login/github` | Starts login with GitHub. |
-| `GET` | `/callback/google` | Receives the Google callback and redirects to the client app with a JWT. |
-| `GET` | `/callback/github` | Receives the GitHub callback and redirects to the client app with a JWT. |
-| `GET` | `/hc` | Healthcheck. Returns JSON with `"Im breathing"`. |
-| `GET` | `/static/*` | Serves static files from `internal/pages`. |
-
-### Authentication Flow
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant B as Browser
-    participant C as Client app
-    participant A as Go Auth
-    participant P as OAuth Provider
-
-    U->>B: Opens client application
-    B->>C: GET page with login button
-    C-->>B: Link to /login/{provider}
-    U->>B: Clicks sign in
-    B->>A: GET /login/{provider} with Referer
-    A->>A: Creates state = uuid + "--" + Referer
-    A-->>B: 307 Redirect to provider
-    B->>P: OAuth authorization
-    P-->>B: Redirect to /callback/{provider}?code=...&state=...
-    B->>A: GET /callback/{provider}
-    A->>P: Exchanges code for OAuth token
-    A->>P: Fetches user profile
-    P-->>A: User data
-    A->>A: Creates JWT signed with SECRET
-    A-->>B: 301 Redirect to {origin}{CALLBACK_PATH}?token=JWT
-    B->>C: Delivers token to the client app
-```
-
-### Generated JWT
-
-The token is signed with `HS256` using `SECRET` and expires in 1 minute. The current claims include:
-
-```json
-{
-  "name": "User name",
-  "email": "user@example.com",
-  "location": "en-US",
-  "picture": "https://...",
-  "exp": 1710000000,
-  "iat": 1709999940
-}
 ```
 
 ### Tests
@@ -534,24 +332,18 @@ The token is signed with `HS256` using `SECRET` and expires in 1 minute. The cur
 Run:
 
 ```bash
-go test ./...
+make test
 ```
 
-The current tests cover provider configuration and main routes using the `Mock` provider.
+`make test` starts `redis-test` with Docker Compose and runs `go test ./...` using `REDIS_ADDR=localhost:6380`.
 
-### How to Improve the Project
+### Recommended Improvements
 
-Recommended improvements:
-
-- Validate `PORT`, `CALLBACK_PATH`, and `SECRET` at startup to avoid running with incomplete configuration.
-- Return `404` or `400` when a disabled provider route is accessed.
-- Protect the `state` parameter better: store state in a session/cookie, validate a signature, and avoid depending only on `Referer`.
-- Add CSRF protection and explicit allowed-origin validation for the final redirect.
-- Make JWT expiration configurable or switch to sessions/refresh tokens depending on the use case.
-- Standardize JWT claims and fix/expand provider-specific user data.
-- For GitHub, request `user:email` and fetch `/user/emails` when private email support is needed.
-- Add integration tests with fake HTTP servers for Google and GitHub callbacks.
-- Add CI with `go test ./...`, `go vet ./...`, and formatting checks.
-- Commit `go.sum` for reproducible builds.
-- Fix the module path `gitbhub.com/...` if the intent is to publish/import it as `github.com/...`.
-- Add a Dockerfile and deployment example.
+- Enforce minimum length/entropy for `SECRET`.
+- Configure Redis password/TLS outside local development.
+- Use `http.Server` timeouts.
+- Set explicit `MaxAge`/`Expires` on the `auth_token` cookie.
+- Validate Google `email_verified` when email is used for authorization.
+- For GitHub, request `user:email` and fetch verified email addresses.
+- Add integration tests with fake HTTP servers for Google and GitHub.
+- Fix the module path `gitbhub.com/...` if it should be `github.com/...`.
