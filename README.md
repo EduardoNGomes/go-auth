@@ -337,13 +337,3 @@ make test
 
 `make test` starts `redis-test` with Docker Compose and runs `go test ./...` using `REDIS_ADDR=localhost:6380`.
 
-### Recommended Improvements
-
-- Enforce minimum length/entropy for `SECRET`.
-- Configure Redis password/TLS outside local development.
-- Use `http.Server` timeouts.
-- Set explicit `MaxAge`/`Expires` on the `auth_token` cookie.
-- Validate Google `email_verified` when email is used for authorization.
-- For GitHub, request `user:email` and fetch verified email addresses.
-- Add integration tests with fake HTTP servers for Google and GitHub.
-- Fix the module path `gitbhub.com/...` if it should be `github.com/...`.
