@@ -63,7 +63,7 @@ func validateEnvs() error {
 	}
 
 	if os.Getenv("REDIS_ADDR") == "" {
-		return fmt.Errorf("Missing env REDIRECT_URL")
+		return fmt.Errorf("Missing env REDIS_ADDR")
 	}
 
 	return nil

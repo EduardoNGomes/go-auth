@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 )
 
@@ -25,7 +24,7 @@ type User struct {
 }
 
 type Actions interface {
-	AuthRedirect(*http.Request) (string, error)
+	AuthRedirect(*http.Request, string) (string, error)
 	CallbackRedirect(*http.Request) (string, error)
 	createJWTToken(User) (string, error)
 	getUser(*http.Client) (User, error)
@@ -80,16 +79,7 @@ func validateEnvs(envs [3]string) bool {
 	return true
 }
 
-func authCommon(c *oauth2.Config) (string, error) {
-	uuid, err := uuid.NewRandom()
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("error creating code: %w", err)
-		return "", wrappedErr
-	}
-
-	code := uuid.String()
-
+func authCommon(c *oauth2.Config, code string) (string, error) {
 	url := c.AuthCodeURL(code)
 
 	return url, nil

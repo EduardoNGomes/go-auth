@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
+	"gitbhub.com/eduardongomes/go-auth/internal/cache"
 	"gitbhub.com/eduardongomes/go-auth/internal/pages"
 	"gitbhub.com/eduardongomes/go-auth/internal/providers"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -86,11 +89,36 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	pathProvider := providers.Provider(strings.ToUpper(path))
 
 	var redirectURL string
+	if _, ok := s.oauthOptions[pathProvider]; !ok {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode("Not Found")
+		return
+	}
+
+	uuid, err := uuid.NewRandom()
+
+	if err != nil {
+		http.Error(w, "Failed connect on auth route", http.StatusInternalServerError)
+		return
+	}
+
+	state := uuid.String()
+
+	cacheValue := cache.RedisSetStruct{
+		Key:      state,
+		Value:    string(pathProvider),
+		Duration: time.Minute * 5,
+	}
+
+	if err := cache.RedisSet(s.cache, cacheValue); err != nil {
+		http.Error(w, "Failed connect on auth route", http.StatusInternalServerError)
+		return
+	}
 
 	switch pathProvider {
 	case providers.GOOGLE:
 		{
-			url, err := s.oauthOptions[providers.GOOGLE].AuthRedirect(r)
+			url, err := s.oauthOptions[providers.GOOGLE].AuthRedirect(r, state)
 
 			if err != nil {
 				fmt.Println(err)
@@ -102,7 +130,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		}
 	case providers.GITHUB:
 		{
-			url, err := s.oauthOptions[providers.GITHUB].AuthRedirect(r)
+			url, err := s.oauthOptions[providers.GITHUB].AuthRedirect(r, state)
 
 			if err != nil {
 				fmt.Println(err)
@@ -122,16 +150,26 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("provider")
+	state := r.FormValue("state")
 
-	validation := providerVerify(w, r.Method, path)
-
-	if !validation {
+	validationProvider := providerVerify(w, r.Method, path)
+	if !validationProvider {
 		return
 	}
 
 	var JWT string
 
 	pathProvider := providers.Provider(strings.ToUpper(path))
+	if _, ok := s.oauthOptions[pathProvider]; !ok {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode("Not Found")
+		return
+	}
+
+	if !stateVerify(s, state, pathProvider, w) {
+		return
+	}
+
 	switch pathProvider {
 	case providers.GOOGLE:
 		{
@@ -141,6 +179,7 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				fmt.Println(err)
 				http.Error(w, "Failed connect on callback route", http.StatusInternalServerError)
+				return
 			}
 
 			JWT = jwt
@@ -154,6 +193,7 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				fmt.Println(err)
 				http.Error(w, "Failed connect on callback route", http.StatusInternalServerError)
+				return
 			}
 
 			JWT = jwt
@@ -177,7 +217,27 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 
 	redirectURL := os.Getenv("REDIRECT_URL")
 
-	http.Redirect(w, r, redirectURL, http.StatusPermanentRedirect)
+	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+func stateVerify(s *Server, state string, provider providers.Provider, w http.ResponseWriter) bool {
+
+	storedProvider, err := cache.RedisGetDel(s.cache, state)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode("Invalid Entry")
+
+		return false
+	}
+
+	if storedProvider != string(provider) {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode("Invalid Entry")
+
+		return false
+	}
+
+	return true
 }
 
 func providerVerify(w http.ResponseWriter, requestMethod, path string) bool {

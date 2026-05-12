@@ -10,7 +10,7 @@ func NewMock() *Mock {
 	return &Mock{}
 }
 
-func (g *Mock) AuthRedirect(r *http.Request) (string, error) {
+func (g *Mock) AuthRedirect(r *http.Request, code string) (string, error) {
 	return "hc", nil
 }
 

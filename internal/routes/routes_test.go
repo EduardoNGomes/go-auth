@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"gitbhub.com/eduardongomes/go-auth/internal/cache"
 	"gitbhub.com/eduardongomes/go-auth/internal/routes"
@@ -92,13 +93,62 @@ func TestRoutes(t *testing.T) {
 		verifyStatusCode(t, http.StatusNotFound, response.Code)
 	})
 
-	t.Run("[GET GOOGLE] Callback route", func(t *testing.T) {
+	t.Run("[GET GOOGLE] Callback route without state", func(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodGet, "/callback/google", nil)
 		response := httptest.NewRecorder()
 
 		serverMock.ServeHTTP(response, request)
 
-		verifyStatusCode(t, http.StatusPermanentRedirect, response.Code)
+		verifyStatusCode(t, http.StatusBadRequest, response.Code)
+
+	})
+
+	t.Run("[GET GOOGLE] Callback route with valid state", func(t *testing.T) {
+		state := "valid-google-state"
+		err := cache.RedisSet(redisCache, cache.RedisSetStruct{
+			Key:      state,
+			Value:    string(providers.GOOGLE),
+			Duration: time.Minute,
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request, _ := http.NewRequest(http.MethodGet, "/callback/google?state="+state, nil)
+		response := httptest.NewRecorder()
+
+		serverMock.ServeHTTP(response, request)
+
+		verifyStatusCode(t, http.StatusFound, response.Code)
+
+	})
+
+	t.Run("[GET GOOGLE] Callback route cannot reuse state", func(t *testing.T) {
+		state := "reused-google-state"
+		err := cache.RedisSet(redisCache, cache.RedisSetStruct{
+			Key:      state,
+			Value:    string(providers.GOOGLE),
+			Duration: time.Minute,
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request, _ := http.NewRequest(http.MethodGet, "/callback/google?state="+state, nil)
+		response := httptest.NewRecorder()
+
+		serverMock.ServeHTTP(response, request)
+
+		verifyStatusCode(t, http.StatusFound, response.Code)
+
+		request, _ = http.NewRequest(http.MethodGet, "/callback/google?state="+state, nil)
+		response = httptest.NewRecorder()
+
+		serverMock.ServeHTTP(response, request)
+
+		verifyStatusCode(t, http.StatusBadRequest, response.Code)
 
 	})
 

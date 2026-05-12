@@ -21,13 +21,13 @@ func RedisConect() *redis.Client {
 }
 
 type RedisSetStruct struct {
-	key   string
-	value string
-	ttl   time.Duration
+	Key      string
+	Value    string
+	Duration time.Duration
 }
 
 func RedisSet(rdb *redis.Client, s RedisSetStruct) error {
-	err := rdb.Set(ctx, s.key, s.value, s.ttl).Err()
+	err := rdb.Set(ctx, s.Key, s.Value, s.Duration).Err()
 
 	if err != nil {
 		fmt.Printf("%s -> %s", CannotSetKeyError, err)
@@ -37,8 +37,8 @@ func RedisSet(rdb *redis.Client, s RedisSetStruct) error {
 	return nil
 }
 
-func RedisGet(rdb *redis.Client, key string) (string, error) {
-	val, err := rdb.Get(ctx, key).Result()
+func RedisGetDel(rdb *redis.Client, key string) (string, error) {
+	val, err := rdb.GetDel(ctx, key).Result()
 
 	if err != nil {
 		fmt.Printf("%s -> %s", CannotGetKeyError, err)
