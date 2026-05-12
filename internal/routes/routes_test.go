@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"gitbhub.com/eduardongomes/go-auth/internal/cache"
 	"gitbhub.com/eduardongomes/go-auth/internal/routes"
 
 	"gitbhub.com/eduardongomes/go-auth/internal/providers"
@@ -14,7 +15,13 @@ import (
 func TestRoutes(t *testing.T) {
 	c := providers.NewMock()
 	p := map[providers.Provider]providers.Actions{providers.GOOGLE: c}
-	s, _ := routes.NewServer(p)
+
+	redisCache := cache.RedisConect()
+
+	defer redisCache.Close()
+
+	s, _ := routes.NewServer(p, redisCache)
+
 	serverMock, _ := routes.NewRoutes(s)
 
 	t.Run("[GET] HC route", func(t *testing.T) {

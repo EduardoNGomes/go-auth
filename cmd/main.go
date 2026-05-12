@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"gitbhub.com/eduardongomes/go-auth/internal/cache"
 	r "gitbhub.com/eduardongomes/go-auth/internal/routes"
 
 	"gitbhub.com/eduardongomes/go-auth/internal/providers"
@@ -13,6 +14,10 @@ import (
 )
 
 func main() {
+
+	redisCache := cache.RedisConect()
+
+	defer redisCache.Close()
 
 	if err := validateEnvs(); err != nil {
 		log.Fatal(err)
@@ -23,7 +28,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	server, err := r.NewServer(options)
+	server, err := r.NewServer(options, redisCache)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -54,6 +59,10 @@ func validateEnvs() error {
 	}
 
 	if os.Getenv("REDIRECT_URL") == "" {
+		return fmt.Errorf("Missing env REDIRECT_URL")
+	}
+
+	if os.Getenv("REDIS_ADDR") == "" {
 		return fmt.Errorf("Missing env REDIRECT_URL")
 	}
 

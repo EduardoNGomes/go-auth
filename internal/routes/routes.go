@@ -10,21 +10,24 @@ import (
 
 	"gitbhub.com/eduardongomes/go-auth/internal/pages"
 	"gitbhub.com/eduardongomes/go-auth/internal/providers"
+	"github.com/redis/go-redis/v9"
 )
 
 type Server struct {
 	http.Handler
 	template     *template.Template
 	oauthOptions providers.OAuthOptions
+	cache        *redis.Client
 }
 
 const ContentTypeJSON = "application/json"
 
 var HtmlTemplatePath = pages.GetHtmlTemplate()
 
-func NewServer(options providers.OAuthOptions) (*Server, error) {
+func NewServer(options providers.OAuthOptions, cache *redis.Client) (*Server, error) {
 	return &Server{
 		oauthOptions: options,
+		cache:        cache,
 	}, nil
 }
 func NewRoutes(s *Server) (*Server, error) {
